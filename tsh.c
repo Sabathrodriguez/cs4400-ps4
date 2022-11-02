@@ -250,40 +250,22 @@ void eval(char *cmdline)
       }
 
   } else {
-    if (bg == 0) {
-      sigset_t sigs;
-      sigemptyset(&sigs);
-      sigaddset(&sigs, SIGSEGV);
-      sigaddset(&sigs, SIGINT);
+      if (bg == 0) {
+        if (builtin_cmd(argv1) == 0) {
+                execve(argv1[0], argv1, environ);
+          }
+      } else {
+          int pid = fork();
+          if (pid == 0) {
 
-      sigprocmask(SIG_BLOCK, &sigs, NULL);
-//    execve(cmd2[1], argv2, environ);
-      if (builtin_cmd(argv1) == 0) {
-//          printf("before exec");
-          execve(argv1[0], argv1, environ);
-          sigprocmask(SIG_UNBLOCK, &sigs, NULL);
+            if (builtin_cmd(argv1) == 0) {
+                    execve(argv1[0], argv1, environ);
+              }
+          } else {
+              addjob(jobs, getpid(), BG, cmdline);
+              listjobs(jobs);
+          }
       }
-    } else {
-        //TODO: run through with gdb and see why its not printing test04 correctly
-        addjob(jobs, getpid(), FG, cmdline);
-        printf(getjobjid(jobs, nextjid--));
-//        listjobs(jobs);
-	sigset_t sigs;
-        sigemptyset(&sigs);
-        sigaddset(&sigs, SIGSEGV);
-        sigaddset(&sigs, SIGINT);
-  
-        sigprocmask(SIG_BLOCK, &sigs, NULL);                                                                                                                   
-        if (builtin_cmd(argv1) == 0) {                                                                                                               
-            execve(argv1[0], argv1, environ);
-           sigprocmask(SIG_UNBLOCK, &sigs, NULL);
-        }
-      }
-      
-  
-    //addjob(jobs, 0, BG, argv1[0]);
-    // listjobs(jobs);
-    //wait(NULL);
   }
 
   return;
@@ -402,7 +384,7 @@ int builtin_cmd(char **argv)
   }
 
   if (strcmp(cmd, "jobs") == 0) {
-    printf("here");
+//    printf("here");
     listjobs(jobs);
     return 1;
   }
@@ -454,6 +436,8 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
+//  sio_puts("here");
+  deletejob(jobs, getpid());
   return;
 }
 
@@ -611,7 +595,7 @@ void listjobs(struct job_t *jobs)
       printf("[%d] (%d) ", jobs[i].jid, jobs[i].pid);
       switch (jobs[i].state) {
       case BG: 
-	printf("Running ");
+//	printf("Running ");
 	break;
       case FG: 
 	printf("Foreground ");
