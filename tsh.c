@@ -108,6 +108,7 @@ struct job_t *getjobpid(struct job_t *jobs, pid_t pid);
 struct job_t *getjobjid(struct job_t *jobs, int jid); 
 int pid2jid(pid_t pid); 
 void listjobs(struct job_t *jobs);
+void printjob(struct job_t *job);
 
 void usage(void);
 void unix_error(char *msg);
@@ -250,21 +251,29 @@ void eval(char *cmdline)
       }
 
   } else {
-      if (bg == 0) {
-        if (builtin_cmd(argv1) == 0) {
-                execve(argv1[0], argv1, environ);
+//      if (builtin_cmd(argv1) == 0) {
+      int t = builtin_cmd(argv1);
+      int pid = fork();
+      if (pid == 0) {
+          if (t == 0) {
+              addjob(jobs, getpid(), BG, cmdline);
+              execve(argv1[0], argv1, environ);
           }
       } else {
-          int pid = fork();
-          if (pid == 0) {
-
-            if (builtin_cmd(argv1) == 0) {
-                    execve(argv1[0], argv1, environ);
-              }
-          } else {
-              addjob(jobs, getpid(), BG, cmdline);
-              listjobs(jobs);
+//          printjob(getjobpid(jobs, pid));
+          if (bg == 0) {
+              int status;
+              waitpid(pid, &status, 0);
           }
+          deletejob(jobs, pid);
+//          if (bg != 0) {
+//              int status;
+//              waitpid(pid, &status, 0);
+
+//          } else {
+//            listjobs(jobs);
+//          }
+
       }
   }
 
@@ -379,8 +388,8 @@ int builtin_cmd(char **argv)
 
   if (strcmp(cmd, "quit") == 0)
   {
-    kill(getpid(), SIGINT);
-//    exit(0);
+//    kill(getpid(), SIGINT);
+    exit(0);
   }
 
   if (strcmp(cmd, "jobs") == 0) {
@@ -582,6 +591,10 @@ int pid2jid(pid_t pid)
   return 0;
 }
 
+void printjob(struct job_t *job) {
+    printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
+}
+
 /* listjobs - Print the job list */
 void listjobs(struct job_t *jobs) 
 {
@@ -595,7 +608,7 @@ void listjobs(struct job_t *jobs)
       printf("[%d] (%d) ", jobs[i].jid, jobs[i].pid);
       switch (jobs[i].state) {
       case BG: 
-//	printf("Running ");
+        printf("Running ");
 	break;
       case FG: 
 	printf("Foreground ");
