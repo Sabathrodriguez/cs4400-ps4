@@ -1,4 +1,4 @@
-/* 
+/*
  * tsh - A tiny shell program with job control
  * 
  * Sabath Rodriguez, u1254500
@@ -109,6 +109,7 @@ struct job_t *getjobjid(struct job_t *jobs, int jid);
 int pid2jid(pid_t pid); 
 void listjobs(struct job_t *jobs);
 void printjob(struct job_t *job);
+struct job_t *getFGJob(struct job_t *jobs);
 
 void usage(void);
 void unix_error(char *msg);
@@ -223,6 +224,7 @@ void eval(char *cmdline)
   // TODO: Execute the command(s)
   //       If cmd2 is NULL, then there is only one command
   if (cmd2 != NULL) {
+      sio_puts("ok");
       //if the job is foreground
       if (bg == 0) {
           int pid = fork();
@@ -251,32 +253,61 @@ void eval(char *cmdline)
       }
 
   } else {
-//      if (builtin_cmd(argv1) == 0) {
-      int t = builtin_cmd(argv1);
-      int pid = fork();
-      if (pid == 0) {
-          if (t == 0) {
-              addjob(jobs, getpid(), BG, cmdline);
-              execve(argv1[0], argv1, environ);
+
+      //foreground
+      if (bg == 0) {
+//          wait(NULL);
+//          sio_puts("ok");
+          //blocl signals
+//          printf("hereee");
+
+          sigset_t sigs;
+          sigemptyset(&sigs);
+          sigaddset(&sigs, SIGINT);
+          sigaddset(&sigs, SIGTSTP);
+          sigaddset(&sigs, SIGCHLD);
+
+          sigprocmask(SIG_BLOCK, &sigs, NULL);
+          if (builtin_cmd(argv1) == 0) {
+              int pid = fork();
+              if (pid == 0) {
+                  sigprocmask(SIG_UNBLOCK, &sigs, NULL);
+//                  setpgid(0, 0);
+                  execve(argv1[0], argv1, environ);
+              } else {
+                sigprocmask(SIG_UNBLOCK, &sigs, NULL);
+                addjob(jobs, pid, FG, cmdline);
+                int status;
+                waitpid(pid, &status, 0);
+              }
           }
+      //background
       } else {
-//          printjob(getjobpid(jobs, pid));
-          if (bg == 0) {
-              int status;
-              waitpid(pid, &status, 0);
-          }
-          deletejob(jobs, pid);
-//          if (bg != 0) {
-//              int status;
-//              waitpid(pid, &status, 0);
+          sigset_t sigs;
+          sigemptyset(&sigs);
+          sigaddset(&sigs, SIGINT);
+          sigaddset(&sigs, SIGCHLD);
+          sigaddset(&sigs, SIGTSTP);
 
-//          } else {
-//            listjobs(jobs);
-//          }
+          sigprocmask(SIG_BLOCK, &sigs, NULL);
 
+          if (builtin_cmd(argv1) == 0) {
+            int pid = fork();
+            if (pid == 0) {
+//                setpgid(0, 0);
+                  sigprocmask(SIG_UNBLOCK, &sigs, NULL);
+                  execve(argv1[0], argv1, environ);
+            } else {
+              sigprocmask(SIG_UNBLOCK, &sigs, NULL);
+              addjob(jobs, pid, BG, cmdline);
+              printjob(getjobjid(jobs, nextjid-1));
+
+            }
+         }
+//          wait(NULL);
       }
   }
-
+//  wait(NULL);
   return;
 }
 
@@ -445,9 +476,28 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
-//  sio_puts("here");
-  deletejob(jobs, getpid());
-  return;
+//  sio_puts("here\n");
+//  printf("next jid: %d\n", nextjid-1);
+//  printf("signal (sigchild): %d\n", sig);
+//  if (getjobjid(jobs, nextjid-1) == NULL)
+//    return;
+//  printf("Job [%d] (%d) terminated by signal %d\n", nextjid-1, getjobjid(jobs, nextjid-1)->pid, sig);
+//  printf("pid (sigchild): %d\n", getjobjid(jobs, nextjid-1)->pid);
+//  printf("about to kill pid: %d\n", getjobjid(jobs, nextjid-1)->pid);
+
+//  struct job_t* t = getjobjid(jobs, getjobid(jobs, nextjid-1));
+//  if (t != NULL)
+//  if (nextjid != 0)
+  deletejob(jobs, getjobjid(jobs, nextjid-1)->pid);
+    return;
+//  sigset_t sigs;
+//  sigemptyset(&sigs);
+//  sigaddset(&sigs, SIGINT);
+
+//  sigprocmask(SIG_BLOCK, &sigs, NULL);
+
+
+//    exit(0);
 }
 
 /* 
@@ -457,8 +507,34 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
-  //sio_puts("Terminating after receipt of SIGINT signal\n");
-    exit(1);
+//    listjobs(jobs);
+    printf("Job [%d] (%d) terminated by signal 2\n", nextjid-1, getjobjid(jobs, nextjid-1)->pid);
+//    printf("signal (sigint): %d\n", sig);
+//    printf("pid (sigint): %d\n", getjobjid(jobs, nextjid-1)->pid);
+//    struct job_t *temp = getFGJob(jobs);
+
+//    if (temp != NULL) {
+//        deletejob(jobs, getjobjid(jobs, nextjid-1)->pid);
+//    }
+//    return;
+//    exit(0);
+//    sigset_t sigs;
+//    sigemptyset(&sigs);
+//    sigaddset(&sigs, SIGINT);
+//    sigaddset(&sigs, SIGCHLD);
+//    sigaddset(&sigs, SIGTSTP);
+
+//    sigprocmask(SIG_BLOCK, &sigs, NULL);
+
+//    sigprocmask(SIG_UNBLOCK, &sigs, NULL);
+    //    nextjid++;
+
+//    deletejob(jobs, getFGJob(jobs)->pid);
+
+//    kill(getjobjid(jobs, nextjid-1)->pid, )
+//    listjobs(jobs);
+    return;
+//    printf("here");
 }
 
 /*
@@ -526,6 +602,8 @@ int addjob(struct job_t *jobs, pid_t pid, int state, char *cmdline)
       if(verbose){
 	printf("Added job [%d] %d %s\n", jobs[i].jid, jobs[i].pid, jobs[i].cmdline);
       }
+//      printjob(getjobjid(jobs, nextjid-1));
+//      printf("test");
       return 1;
     }
   }
@@ -538,6 +616,7 @@ int deletejob(struct job_t *jobs, pid_t pid)
 {
   int i;
 
+//  printf("here");
   if (pid < 1)
     return 0;
 
@@ -575,6 +654,15 @@ struct job_t *getjobjid(struct job_t *jobs, int jid)
     if (jobs[i].jid == jid)
       return &jobs[i];
   return NULL;
+}
+
+struct job_t *getFGJob(struct job_t *jobs) {
+    for (int i = 0; i < MAXJOBS; i++) {
+        if (jobs[i].state == FG)
+            return &jobs[i];
+    }
+
+    return NULL;
 }
 
 /* pid2jid - Map process ID to job ID */
