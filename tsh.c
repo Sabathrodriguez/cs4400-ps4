@@ -260,48 +260,58 @@ void eval(char *cmdline)
 //          sio_puts("ok");
           //blocl signals
 //          printf("hereee");
-
-          sigset_t sigs;
-          sigemptyset(&sigs);
-          sigaddset(&sigs, SIGINT);
-          sigaddset(&sigs, SIGTSTP);
-          sigaddset(&sigs, SIGCHLD);
-
-          sigprocmask(SIG_BLOCK, &sigs, NULL);
           if (builtin_cmd(argv1) == 0) {
+
+              sigset_t sigs;
+              sigemptyset(&sigs);
+              sigaddset(&sigs, SIGINT);
+              sigaddset(&sigs, SIGTSTP);
+              sigaddset(&sigs, SIGCHLD);
+
+              sigprocmask(SIG_BLOCK, &sigs, NULL);
               int pid = fork();
               if (pid == 0) {
                   sigprocmask(SIG_UNBLOCK, &sigs, NULL);
-//                  setpgid(0, 0);
+//                  sigsuspend(&sigs);
+                  setpgid(0,0);
                   execve(argv1[0], argv1, environ);
               } else {
-                sigprocmask(SIG_UNBLOCK, &sigs, NULL);
                 addjob(jobs, pid, FG, cmdline);
+                sigprocmask(SIG_UNBLOCK, &sigs, NULL);
                 int status;
-                waitpid(pid, &status, 0);
+
+                waitpid(pid, &status, WUNTRACED | WNOHANG);
+
+                if (WIFSTOPPED(status)) {
+                    printf("stopped\n");
+                } else {
+                    printf("hang");
+                }
+//                waitpid(pid, &status, WNOHANG);
+//                sigset_t empty;
+//                sigemptyset(&empty);
+//                sigsuspend(&empty);
               }
           }
       //background
       } else {
-          sigset_t sigs;
-          sigemptyset(&sigs);
-          sigaddset(&sigs, SIGINT);
-          sigaddset(&sigs, SIGCHLD);
-          sigaddset(&sigs, SIGTSTP);
-
-          sigprocmask(SIG_BLOCK, &sigs, NULL);
-
           if (builtin_cmd(argv1) == 0) {
+            sigset_t sigs;
+            sigemptyset(&sigs);
+            sigaddset(&sigs, SIGINT);
+            sigaddset(&sigs, SIGCHLD);
+            sigaddset(&sigs, SIGTSTP);
+
+            sigprocmask(SIG_BLOCK, &sigs, NULL);
             int pid = fork();
             if (pid == 0) {
-//                setpgid(0, 0);
                   sigprocmask(SIG_UNBLOCK, &sigs, NULL);
+                  setpgid(0, 0);
                   execve(argv1[0], argv1, environ);
             } else {
-              sigprocmask(SIG_UNBLOCK, &sigs, NULL);
               addjob(jobs, pid, BG, cmdline);
+              sigprocmask(SIG_UNBLOCK, &sigs, NULL);
               printjob(getjobjid(jobs, nextjid-1));
-
             }
          }
 //          wait(NULL);
@@ -419,7 +429,7 @@ int builtin_cmd(char **argv)
 
   if (strcmp(cmd, "quit") == 0)
   {
-//    kill(getpid(), SIGINT);
+//    (getpid(), SIGINT);
     exit(0);
   }
 
@@ -476,28 +486,27 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
-//  sio_puts("here\n");
-//  printf("next jid: %d\n", nextjid-1);
-//  printf("signal (sigchild): %d\n", sig);
-//  if (getjobjid(jobs, nextjid-1) == NULL)
-//    return;
-//  printf("Job [%d] (%d) terminated by signal %d\n", nextjid-1, getjobjid(jobs, nextjid-1)->pid, sig);
-//  printf("pid (sigchild): %d\n", getjobjid(jobs, nextjid-1)->pid);
-//  printf("about to kill pid: %d\n", getjobjid(jobs, nextjid-1)->pid);
+//    printf("sig: %d\n", sig);
+//    printf("s: %d\n", WIFSTOPPED(sig));
+//    printf("c: %d\n", WIFCONTINUED(sig));
+//        printf("signaled: %d\n", WIFSIGNALED(sig));
+//        printf("pid: %d\n", getjobjid(jobs, nextjid-1)->pid);
 
-//  struct job_t* t = getjobjid(jobs, getjobid(jobs, nextjid-1));
-//  if (t != NULL)
-//  if (nextjid != 0)
-  deletejob(jobs, getjobjid(jobs, nextjid-1)->pid);
-    return;
-//  sigset_t sigs;
-//  sigemptyset(&sigs);
-//  sigaddset(&sigs, SIGINT);
+    if (WIFSIGNALED(sig)) {
+//        printf("here 2\n");
+        kill(getjobjid(jobs, nextjid-1)->pid, SIGCHLD);
+        deletejob(jobs, getjobjid(jobs, nextjid-1)->pid);
+    }
 
-//  sigprocmask(SIG_BLOCK, &sigs, NULL);
+//    printf("pid: %d\n", getjobjid(jobs, nextjid-1)->pid);
 
 
-//    exit(0);
+    if (WIFSTOPPED(sig)) {
+            printf("here\n");
+//            int status;
+//            waitpid(getFGJob(jobs)->pid, &status, WCONTINUED);
+    }
+
 }
 
 /* 
@@ -507,34 +516,9 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
-//    listjobs(jobs);
     printf("Job [%d] (%d) terminated by signal 2\n", nextjid-1, getjobjid(jobs, nextjid-1)->pid);
-//    printf("signal (sigint): %d\n", sig);
-//    printf("pid (sigint): %d\n", getjobjid(jobs, nextjid-1)->pid);
-//    struct job_t *temp = getFGJob(jobs);
-
-//    if (temp != NULL) {
-//        deletejob(jobs, getjobjid(jobs, nextjid-1)->pid);
-//    }
-//    return;
-//    exit(0);
-//    sigset_t sigs;
-//    sigemptyset(&sigs);
-//    sigaddset(&sigs, SIGINT);
-//    sigaddset(&sigs, SIGCHLD);
-//    sigaddset(&sigs, SIGTSTP);
-
-//    sigprocmask(SIG_BLOCK, &sigs, NULL);
-
-//    sigprocmask(SIG_UNBLOCK, &sigs, NULL);
-    //    nextjid++;
-
 //    deletejob(jobs, getFGJob(jobs)->pid);
-
-//    kill(getjobjid(jobs, nextjid-1)->pid, )
-//    listjobs(jobs);
-    return;
-//    printf("here");
+    kill(getjobjid(jobs, nextjid-1)->pid, SIGINT);
 }
 
 /*
@@ -544,8 +528,15 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
-
-  return;
+    printf("Job [%d] (%d) stopped by signal 20\n", nextjid-1, getjobjid(jobs, nextjid-1)->pid);
+//    deletejob(jobs, getjobjid(jobs, nextjid-1)->pid);
+//    printf("pid: %d\n", getjobjid(jobs, nextjid-1)->pid);
+    kill(getjobjid(jobs, nextjid-1)->pid, SIGTSTP);
+//    listjobs(jobs);
+//    sio_puts("test");
+//    while (!WIFCONTINUED(sig)) {}
+//    int status;
+//    waitpid(getFGJob(jobs)->pid, &status, WUNTRACED);
 }
 
 /*********************
